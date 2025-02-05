@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dogey Kong</title>
+    <script src="p5.min.js"></script> 
+    <script src="p5.sound.js"></script>
+</head>
+<body>
+<script>
+let character, platforms, obstacles, winSpot, score, gameLost, gravity, jumpStrength, obstacleSpawnInterval, obstacleSpeed;
+
+let backgroundImg, characterImg, platformImg, groundImg, obstacleImg, winSpotImg;
+
+let gameState = "start";
+let showInstructions = false;
+
+let sound;
+let isPlaying = false;
+let buttonImage;
+
+function preload() {
+  backgroundImg = loadImage('./res/backround.jpg');
+  characterImg = loadImage('./res/dog.png');
+  platformImg = loadImage('./res/layer.png');
+  groundImg = loadImage('./res/platform.jpg');
+  obstacleImg = loadImage('./res/obstacle.png');
+  winSpotImg = loadImage('./res/cat.png');
+
+  sound = loadSound('./res/sound.mp3'); 
+}
+
+function setup() {
+  createCanvas(1200, 600);
+
+  gravity = 0.8;
+  jumpStrength = -15;
+  obstacleSpeed = 4;
+  obstacleSpawnInterval = 1500;
+
+  score = 0;
+  gameLost = false;
+
+  character = {
+    x: 50,
+    y: 550,
+    width: 50,
+    height: 50,
+    dx: 0,
+    dy: 0,
+    speed: 5,
+    onGround: false,
+  };
+
+  platforms = [
+    { x: 0, y: 550, width: 1200, height: 50 },
+    { x: 150, y: 450, width: 150, height: 20 },
+    { x: 500, y: 450, width: 150, height: 20 },
+    { x: 800, y: 450, width: 150, height: 20 },
+    { x: 350, y: 300, width: 150, height: 20 },
+    { x: 650, y: 300, width: 150, height: 20 },
+    { x: 150, y: 150, width: 150, height: 20 },
+    { x: 500, y: 150, width: 150, height: 20 },
+    { x: 800, y: 150, width: 150, height: 20 },
+  ];
+
+  obstacles = [];
+
+  winSpot = {
+    x: 850,
+    y: 130,
+    width: 36,
+    height: 44,
+  };
+
+  setInterval(spawnObstacle, obstacleSpawnInterval);
+
+  buttonImage = createImg('./res/play.png', 'play');
+  buttonImage.size(50, 50);
+  buttonImage.position(30, 60);
+  buttonImage.mousePressed(togglePlayPause);
+}
+function buttonImageFun(){
+  if (isPlaying) {
+    buttonImage.remove();
+    buttonImage = createImg('./res/play.png', 'play');
+    buttonImage.size(50, 50);
+    buttonImage.position(30, 60);
+    buttonImage.mousePressed(togglePlayPause);
+} else {
+    buttonImage.remove();
+    buttonImage = createImg('./res/pause.png', 'play');
+    buttonImage.size(50, 50);
+    buttonImage.position(30, 60);
+    buttonImage.mousePressed(togglePlayPause);
+}
+}
+
+function draw() {
+  background(backgroundImg);
+
+  if (gameState === "start") {
+    drawStartScreen();
+  } else if (gameState === "playing") {
+    if (gameLost) {
+      gameState = "gameOver";
+    } else {
+      update();
+      drawPlatforms();
+      drawCharacter();
+      drawObstacles();
+      drawWinSpot();
+      drawScore();
+    }
+  } else if (gameState === "gameOver") {
+    drawGameOverScreen();
+  }
+}
+
+function update() {
+  // Character movement
+  character.x += character.dx;
+  character.dy += gravity;
+  character.y += character.dy;
+
+  // Prevent going out of bounds
+  character.x = constrain(character.x, 0, width - character.width);
+
+  // Collision with platforms
+  character.onGround = false;
+  for (const platform of platforms) {
+    if (
+      character.x < platform.x + platform.width &&
+      character.x + character.width > platform.x &&
+      character.y + character.height > platform.y &&
+      character.y + character.height < platform.y + platform.height
+    ) {
+      character.onGround = true;
+      character.dy = 0;
+      character.y = platform.y - character.height;
+    }
+  }
+  // Prevent falling through the bottom
+  if (character.y + character.height > height) {
+    character.y = height - character.height;
+    character.onGround = true;
+    character.dy = 0;
+  }
+
+  // Update obstacles
+  for (let i = obstacles.length - 1; i >= 0; i--) {
+    const obstacle = obstacles[i];
+    obstacle.y += obstacleSpeed;
+
+    // Remove obstacles out of bounds
+    if (obstacle.y > height) {
+      obstacles.splice(i, 1);
+    }
+
+    // Collision with character
+    if (
+      character.x < obstacle.x + obstacle.width &&
+      character.x + character.width > obstacle.x &&
+      character.y < obstacle.y + obstacle.height &&
+      character.y + character.height > obstacle.y
+    ) {
+      gameLost = true;
+    }
+  }
+
+  // Check collision with win spot
+  if (
+    character.x < winSpot.x + winSpot.width &&
+    character.x + character.width > winSpot.x &&
+    character.y + character.height > winSpot.y &&
+    character.y + character.height < winSpot.y + winSpot.height
+  ) {
+    score += 10;
+    spawnNewWinSpot();
+  }
+}
+
+function drawPlatforms() {
+  for (const platform of platforms) {
+    if(platform != platforms[0]){
+      image(platformImg, platform.x, platform.y, platform.width, platform.height);
+    }
+    else{
+      image(groundImg, platform.x, platform.y, platform.width, platform.height);
+    }
+  }
+}
+
+function drawCharacter() {
+  image(characterImg, character.x, character.y, character.width, character.height);
+}
+
+function drawObstacles() {
+  for (const obstacle of obstacles) {
+    image(obstacleImg, obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+  }
+}
+
+function drawWinSpot() {
+  image(winSpotImg, winSpot.x, winSpot.y, winSpot.width, winSpot.height);
+}
+
+function drawScore() {
+  fill(0);
+  textSize(20);
+  text(`Score: ${score}`, 60, 30);
+}
+
+function drawGameOverScreen() {
+  background(220);
+  background(backgroundImg);
+  textAlign(CENTER, CENTER);
+  fill(0);
+
+  fill(255, 0, 0);
+  textSize(30);
+  text('Game Over!', width / 2, height / 3);
+  
+  fill(0);
+  textSize(20);
+  text(`Score: ${score}`, 60, 30);
+
+  fill(0);
+  textSize(20);
+  text("Click 'Start Game' to play", width / 2, height / 3 + 40);
+
+  // Start Button
+  fill(0, 255, 0);
+  rect(width / 2 - 100, height / 2, 200, 50, 10);
+  fill(255);
+  textSize(25);
+  text("Start Game", width / 2, height / 2 + 25);
+
+  // How to Play Button
+  fill(0, 0, 255);
+  rect(width / 2 - 100, height / 2 + 70, 200, 50, 10);
+  fill(255);
+  textSize(20);
+  text("How to Play", width / 2, height / 2 + 95);
+
+  if (showInstructions) {
+    fill(0, 0, 0, 150); 
+    rect(width / 2 - 200, height / 2 + 130, 400, 60, 10); 
+    fill(255);
+    textSize(18);
+    textAlign(CENTER, CENTER);
+    text("Use arrow keys to move and jump.\nAvoid obstacles and reach the goal!", width / 2, height / 2 + 160);
+  }
+}
+
+function keyPressed() {
+  if (keyCode === RIGHT_ARROW) character.dx = character.speed;
+  if (keyCode === LEFT_ARROW) character.dx = -character.speed;
+  if (keyCode === UP_ARROW && character.onGround) character.dy = jumpStrength;
+}
+
+function keyReleased() {
+  if (keyCode === RIGHT_ARROW || keyCode === LEFT_ARROW) character.dx = 0;
+}
+
+function spawnObstacle() {
+  const obstacleWidth = 64;
+  const obstacleHeight = 58;
+  const obstacleX = random(width - obstacleWidth);
+  const obstacleY = -obstacleHeight;
+  obstacles.push({ x: obstacleX, y: obstacleY, width: obstacleWidth, height: obstacleHeight });
+}
+
+function spawnNewWinSpot() {
+  winSpot.x = random(width - winSpot.width);
+  winSpot.y = random(height / 2);
+}
+function drawStartScreen() {
+  background(220);
+  background(backgroundImg);
+  textAlign(CENTER, CENTER);
+  fill(0);
+  textSize(30);
+  text("Welcome to the Dogey Kong!", width / 2, height / 3);
+  textSize(20);
+  text("Click 'Start Game' to play", width / 2, height / 3 + 40);
+
+  // Start Button
+  fill(0, 255, 0);
+  rect(width / 2 - 100, height / 2, 200, 50, 10);
+  fill(255);
+  textSize(25);
+  text("Start Game", width / 2, height / 2 + 25);
+
+  // How to Play Button
+  fill(0, 0, 255);
+  rect(width / 2 - 100, height / 2 + 70, 200, 50, 10);
+  fill(255);
+  textSize(20);
+  text("How to Play", width / 2, height / 2 + 95);
+
+  if (showInstructions) {
+    fill(0, 0, 0, 150); 
+    rect(width / 2 - 200, height / 2 + 130, 400, 60, 10); 
+    fill(255);
+    textSize(18);
+    textAlign(CENTER, CENTER);
+    text("Use arrow keys to move and jump.\nAvoid obstacles and reach the goal!", width / 2, height / 2 + 160);
+  }
+}
+
+function mousePressed() {
+  if (gameState === "start" || gameState === "gameOver") {
+    if (mouseX > width / 2 - 100 && mouseX < width / 2 + 100) {
+      if (mouseY > height / 2 && mouseY < height / 2 + 50) {
+        startGame();
+      }
+      if (mouseY > height / 2 + 70 && mouseY < height / 2 + 120) {
+        
+        showInstructions = !showInstructions; // Toggle instructions on/off
+      }
+    }
+  }
+}
+
+function startGame() {
+  gameState = "playing";
+  gameLost = false;
+  score = 0;
+  character.x = 50;
+  character.y = 550;
+  obstacles = [];
+}
+
+function togglePlayPause() {
+    if (isPlaying) {
+        sound.pause(); 
+        buttonImageFun();
+    } else {
+        sound.play(); 
+        buttonImageFun();
+    }
+    isPlaying = !isPlaying; 
+}
+</script>
+
+</body>
+</html>
+
+
